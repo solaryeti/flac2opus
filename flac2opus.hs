@@ -2,9 +2,9 @@
 -- stack --resolver lts-12.10 script
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wall #-}
 
 import           Control.Concurrent (threadDelay)
-import qualified Control.Exception as E (throwTo)
 import qualified Control.Foldl as Fold (list)
 import           Control.Monad (filterM)
 import           Control.Monad (when)
@@ -16,8 +16,7 @@ import           System.Directory (createDirectoryIfMissing, removeFile, doesFil
 import           System.Exit (ExitCode(..), exitFailure)
 import           System.FilePath (replaceExtension, takeDirectory)
 import qualified System.FilePath as FP (FilePath)
-import qualified System.IO as IO
-import           System.Posix.Signals (installHandler, keyboardSignal, Handler(..), sigINT)
+import           System.Posix.Signals (installHandler, Handler(..), sigINT)
 import           Turtle
 
 parser :: Parser (FilePath, FilePath)
@@ -25,7 +24,7 @@ parser = (,) <$> argPath "src"  "The source directory"
              <*> argPath "dest" "The top-level destination directory"
 
 opusfile :: FP.FilePath -> FP.FilePath -> FP.FilePath
-opusfile parent file = parent <> replaceExtension file "opus"
+opusfile parentPath file = parentPath <> replaceExtension file "opus"
 
 convertFilePath :: FilePath -> FP.FilePath
 convertFilePath p = T.unpack (format fp p)
@@ -42,14 +41,14 @@ filesToConvert src dest = do
     flacFiles <- fold (find (suffix ".flac") src) Fold.list
     filterM (missingOpusFile dest) flacFiles
   where
-    missingOpusFile dest file = (doesFileExist $ opusfile (convertFilePath dest) (convertFilePath file)) >>= return . not
+    missingOpusFile dst file = (doesFileExist $ opusfile (convertFilePath dst) (convertFilePath file)) >>= return . not
 
 convertFile :: FilePath -> FilePath -> IO ()
 convertFile dest file  = do
   let outfile = opusfile (convertFilePath dest) (convertFilePath file)
-  installHandler sigINT (Catch $ cleanup outfile) Nothing
+  _ <- installHandler sigINT (Catch $ cleanup outfile) Nothing
   createDirectoryIfMissing True (takeDirectory outfile)
-  (code,_,err) <- procStrictWithErr "opusenc" [ "--bitrate", "128"
+  (code, _, opuserr) <- procStrictWithErr "opusenc" [ "--bitrate", "128"
                                   , "--vbr"
                                   , format fp file
                                   , T.pack outfile ] empty
@@ -59,7 +58,7 @@ convertFile dest file  = do
     threadDelay 300000
     putStrLn $ T.pack ("Failed encoding: " ++ outfile)
     putStrLn "opusenc output:"
-    putStrLn err
+    putStrLn opuserr
     exitFailure
 
 main :: IO ()
