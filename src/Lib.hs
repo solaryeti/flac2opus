@@ -19,37 +19,36 @@ import           Lib.Prelude hiding (find)
 import           System.Console.AsciiProgress
 import           System.Directory (createDirectoryIfMissing, removeFile, doesFileExist, copyFile)
 import           System.Exit (ExitCode(..), exitFailure)
-import           System.FilePath (replaceExtension, takeDirectory, isAbsolute, dropDrive, (</>))
-import qualified System.FilePath as FP (FilePath)
+import           System.FilePath (FilePath, replaceExtension, takeDirectory, isAbsolute, dropDrive, (</>))
 import           System.Posix.Signals (installHandler, Handler(..), sigINT)
 import           Turtle (format, fp, fromString, procStrictWithErr, suffix, find)
 import qualified Turtle (fold, FilePath)
 import qualified Control.Concurrent.PooledIO.Final as Pool
 
 
-joinPath :: FP.FilePath -> FP.FilePath -> FP.FilePath
+joinPath :: FilePath -> FilePath -> FilePath
 joinPath parentPath file
   | isAbsolute file = parentPath </> dropDrive file
   | otherwise = parentPath </> file
 
-convertFilePath :: Turtle.FilePath -> FP.FilePath
+convertFilePath :: Turtle.FilePath -> FilePath
 convertFilePath = T.unpack . format fp
 
-cleanup :: FP.FilePath -> IO ()
+cleanup :: FilePath -> IO ()
 cleanup file = do
   fileExists <- doesFileExist file
   when fileExists $ do
     putStrLn $ "\nProcess failed. Cleaning up " <> T.pack file
     removeFile file
 
-filesToConvert :: FP.FilePath -> FP.FilePath -> IO [FP.FilePath]
+filesToConvert :: FilePath -> FilePath -> IO [FilePath]
 filesToConvert src dest = do
     flacFiles <- Turtle.fold (find (suffix ".flac") (fromString src)) Fold.list
     fmap convertFilePath <$> filterM (missingOpusFile dest) flacFiles
   where
     missingOpusFile dst file = not <$> doesFileExist (joinPath dst (replaceExtension (convertFilePath file) "opus"))
 
-convertFile :: FP.FilePath -> FP.FilePath -> IO ()
+convertFile :: FilePath -> FilePath -> IO ()
 convertFile dest file  = do
   let outfile = replaceExtension dest "opus"
   _ <- installHandler sigINT (Catch $ cleanup outfile) Nothing
@@ -70,7 +69,7 @@ convertFile dest file  = do
     putStrLn opuserr
     exitFailure
 
-coverArtFiles :: FP.FilePath -> FP.FilePath -> IO [FP.FilePath]
+coverArtFiles :: FilePath -> FilePath -> IO [FilePath]
 coverArtFiles src dest = do
     artFiles <- Turtle.fold (find (suffix (".jpg" <|> ".png")) (fromString src)) Fold.list
     fmap convertFilePath <$> filterM (missingArtFile dest) artFiles
@@ -85,8 +84,8 @@ run src dest workers = do
     doWithProgress coverArtFiles (flip copyFile) "cover art"
 
  where
-    doWithProgress :: (FP.FilePath -> FP.FilePath -> IO [FP.FilePath])
-                   -> (FP.FilePath -> FP.FilePath -> IO ())
+    doWithProgress :: (FilePath -> FilePath -> IO [FilePath])
+                   -> (FilePath -> FilePath -> IO ())
                    -> Text
                    -> IO ()
     doWithProgress findFunc actionFunc description = do
@@ -101,7 +100,7 @@ run src dest workers = do
         mapPool_ workers (applyProgress actionFunc (T.unpack dest) pg) files
         liftIO $ complete pg
 
-    applyProgress :: (FP.FilePath -> FP.FilePath -> IO ()) -> FP.FilePath -> ProgressBar ->  FP.FilePath -> IO ()
+    applyProgress :: (FilePath -> FilePath -> IO ()) -> FilePath -> ProgressBar ->  FilePath -> IO ()
     applyProgress f dest' pg file = do
       let destPath = joinPath dest' file
       createDirectoryIfMissing True (takeDirectory destPath)
