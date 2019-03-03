@@ -25,7 +25,9 @@ import           Turtle (format, fp, fromString, procStrictWithErr, suffix, find
 import qualified Turtle (fold, FilePath)
 import qualified Control.Concurrent.PooledIO.Final as Pool
 
-
+-- | Create a version of `System.FilePath.combine` that prepends the
+-- given `parentPath` even when the `file` is absolute rather than
+-- just returning the `file` unchanged.
 joinPath :: FilePath -> FilePath -> FilePath
 joinPath parentPath file
   | isAbsolute file = parentPath </> dropDrive file
@@ -41,6 +43,8 @@ cleanup file = do
     putStrLn $ "\nProcess failed. Cleaning up " <> T.pack file
     removeFile file
 
+-- | Find the flac files that are present under the `src`
+-- directory but missing from the `dest` directory.
 filesToConvert :: FilePath -> FilePath -> IO [FilePath]
 filesToConvert src dest = do
     flacFiles <- Turtle.fold (find (suffix ".flac") (fromString src)) Fold.list
@@ -48,6 +52,7 @@ filesToConvert src dest = do
   where
     missingOpusFile dst file = not <$> doesFileExist (joinPath dst (replaceExtension (convertFilePath file) "opus"))
 
+-- | Convert a flac file file to opus, prepending the `dest` to the outfile.
 convertFile :: FilePath -> FilePath -> IO ()
 convertFile dest file  = do
   let outfile = replaceExtension dest "opus"
@@ -69,6 +74,8 @@ convertFile dest file  = do
     putStrLn opuserr
     exitFailure
 
+-- | Find the cover art files that are present under the `src`
+-- directory but missing from the `dest` directory.
 coverArtFiles :: FilePath -> FilePath -> IO [FilePath]
 coverArtFiles src dest = do
     artFiles <- Turtle.fold (find (suffix (".jpg" <|> ".png")) (fromString src)) Fold.list
@@ -84,9 +91,9 @@ run src dest workers = do
     doWithProgress coverArtFiles (flip copyFile) "cover art"
 
  where
-    doWithProgress :: (FilePath -> FilePath -> IO [FilePath])
-                   -> (FilePath -> FilePath -> IO ())
-                   -> Text
+    doWithProgress :: (FilePath -> FilePath -> IO [FilePath])  -- ^ Function to find files
+                   -> (FilePath -> FilePath -> IO ())          -- ^ Action to apply to found files
+                   -> Text                                     -- ^ Description of files to print in user messages
                    -> IO ()
     doWithProgress findFunc actionFunc description = do
       putStrLn $ "Finding " <> description <> "..."
@@ -108,6 +115,8 @@ run src dest workers = do
       barComplete <- isComplete pg
       unless barComplete $ tick pg
 
+-- | Create a pool of 'n' threads and map an IO function over a
+-- traversable using that pool to run the function concurrently.
 mapPool_ :: (Traversable t, NFData b)
          => Int
          -> (a -> IO b)
