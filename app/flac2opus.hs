@@ -19,6 +19,9 @@ import qualified System.FilePath as FP (FilePath)
 import           System.Posix.Signals (installHandler, Handler(..), sigINT)
 import           Turtle hiding ((</>))
 
+parser :: Parser (Turtle.FilePath, Turtle.FilePath)
+parser = (,) <$> argPath "src"  "The source directory"
+             <*> argPath "dest" "The top-level destination directory"
 
 opusfile :: FP.FilePath -> FP.FilePath -> FP.FilePath
 opusfile parentPath file = joinPath parentPath $ replaceExtension file "opus"
