@@ -24,6 +24,8 @@ import qualified System.FilePath as FP (FilePath)
 import           System.Posix.Signals (installHandler, Handler(..), sigINT)
 import           Turtle (format, fp, procStrictWithErr, suffix, find)
 import qualified Turtle (fold, FilePath)
+import qualified Control.Concurrent.PooledIO.Final as Pool
+
 
 joinPath :: FP.FilePath -> FP.FilePath -> FP.FilePath
 joinPath parentPath file
@@ -45,7 +47,7 @@ filesToConvert src dest = do
     flacFiles <- Turtle.fold (find (suffix ".flac") src) Fold.list
     filterM (missingOpusFile dest) flacFiles
   where
-    missingOpusFile dst file = not <$> doesFileExist (joinPath (convertFilePath dst) (opusfile (convertFilePath file)))
+    missingOpusFile dst file = not <$> doesFileExist (joinPath (convertFilePath dst) (replaceExtension (convertFilePath file) "opus"))
 
 convertFile :: FP.FilePath -> FP.FilePath -> IO ()
 convertFile dest file  = do
@@ -96,7 +98,7 @@ run src dest = do
                                  , pgTotal = if not (null files) then toInteger $ length files else 1
                                  , pgOnCompletion = Just "Done :percent after :elapsed seconds"
                                  }
-        mapM_ (applyProgress actionFunc (convertFilePath dest) pg) (fmap convertFilePath files)
+        mapPool_ 4 (applyProgress actionFunc (convertFilePath dest) pg) (fmap convertFilePath files)
         liftIO $ complete pg
 
     applyProgress :: (FP.FilePath -> FP.FilePath -> IO ()) -> FP.FilePath -> ProgressBar ->  FP.FilePath -> IO ()
@@ -106,3 +108,10 @@ run src dest = do
       f destPath file
       barComplete <- isComplete pg
       unless barComplete $ tick pg
+
+mapPool_ :: (Traversable t, NFData b)
+         => Int
+         -> (a -> IO b)
+         -> t a
+         -> IO ()
+mapPool_ n f = Pool.runLimited n . traverse_ (Pool.fork . f)
