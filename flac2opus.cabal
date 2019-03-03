@@ -1,0 +1,57 @@
+name:                flac2opus
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/solaryeti/flac2opus#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Steven Meunier
+maintainer:          code@solaryeti.com
+copyright:           2019 Steven Meunier
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  ghc-options:         -Wall
+  exposed-modules:     Lib
+  other-modules:       Lib.Prelude
+  build-depends:       base >= 4.7 && < 5
+                     , protolude
+                     , text
+                     , turtle
+                     , filepath
+                     , unix
+                     , directory
+                     , foldl
+                     , ascii-progress
+  default-language:    Haskell2010
+  default-extensions:  OverloadedStrings, NoImplicitPrelude
+
+executable flac2opus
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , flac2opus
+                     , protolude
+                     , turtle
+ default-language:    Haskell2010
+ default-extensions:  OverloadedStrings, NoImplicitPrelude
+
+test-suite flac2opus-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , flac2opus
+                     , protolude
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+  default-extensions:  OverloadedStrings, NoImplicitPrelude
+
+source-repository head
+  type:     git
+  location: https://github.com/solaryeti/flac2opus
