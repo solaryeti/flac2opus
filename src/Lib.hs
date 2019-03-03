@@ -55,10 +55,13 @@ convertFile dest file  = do
   let outfile = opusfile (convertFilePath dest) (convertFilePath file)
   _ <- installHandler sigINT (Catch $ cleanup outfile) Nothing
   createDirectoryIfMissing True (takeDirectory outfile)
-  (code, _, opuserr) <- procStrictWithErr "opusenc" [ "--bitrate", "128"
-                                  , "--vbr"
-                                  , format fp file
-                                  , T.pack outfile ] empty
+  (code, _, opuserr) <- procStrictWithErr "opusenc"
+                        [ "--bitrate"
+                        , "128"
+                        , "--vbr"
+                        , format fp file
+                        , T.pack outfile ]
+                        empty
   unless (code == ExitSuccess) $ do
     -- Give some time for our cleanup operations in the
     -- installHandler to do their thing
