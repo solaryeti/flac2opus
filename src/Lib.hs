@@ -22,7 +22,7 @@ import           System.Exit (ExitCode(..), exitFailure)
 import           System.FilePath (replaceExtension, takeDirectory, isAbsolute, dropDrive, (</>))
 import qualified System.FilePath as FP (FilePath)
 import           System.Posix.Signals (installHandler, Handler(..), sigINT)
-import           Turtle (format, fp, procStrictWithErr, suffix, find)--hiding ((</>), FilePath, fold)
+import           Turtle (format, fp, procStrictWithErr, suffix, find)
 import qualified Turtle (fold, FilePath)
 
 opusfile :: FP.FilePath -> FP.FilePath -> FP.FilePath
@@ -48,7 +48,7 @@ filesToConvert src dest = do
     flacFiles <- Turtle.fold (find (suffix ".flac") src) Fold.list
     filterM (missingOpusFile dest) flacFiles
   where
-    missingOpusFile dst file = (doesFileExist $ opusfile (convertFilePath dst) (convertFilePath file)) >>= return . not
+    missingOpusFile dst file = not <$> doesFileExist (opusfile (convertFilePath dst) (convertFilePath file))
 
 convertFile :: Turtle.FilePath -> Turtle.FilePath -> IO ()
 convertFile dest file  = do
@@ -73,7 +73,7 @@ coverArtFiles src dest = do
     artFiles <- Turtle.fold (find (suffix (".jpg" <|> ".png")) src) Fold.list
     filterM (missingArtFile dest) artFiles
   where
-    missingArtFile dst file = (doesFileExist $ joinPath (convertFilePath dst) (convertFilePath file)) >>= return . not
+    missingArtFile dst file = not <$> doesFileExist (joinPath (convertFilePath dst) (convertFilePath file))
 
 run :: Turtle.FilePath -> Turtle.FilePath -> IO ()
 run src dest = do
@@ -83,7 +83,7 @@ run src dest = do
     putStrLn $ "Found " <> T.pack (show (length files)) <> " files to encode."
     displayConsoleRegions $ do
       pg <- newProgressBar def { pgWidth = 100
-                               , pgTotal = if length files > 0 then (toInteger $ length files) else 1
+                               , pgTotal = if not (null files) then toInteger $ length files else 1
                                , pgOnCompletion = Just "Done :percent after :elapsed seconds"
                                }
       mapM_ (encodeFileWithProgress dest pg) files
@@ -95,7 +95,7 @@ run src dest = do
     putStrLn $ "Found " <> T.pack (show (length artFiles)) <> " cover art files to copy."
     displayConsoleRegions $ do
       pg <- newProgressBar def { pgWidth = 100
-                               , pgTotal = if length artFiles > 0 then (toInteger $ length artFiles) else 1
+                               , pgTotal = if not (null artFiles) then toInteger $ length artFiles else 1
                                , pgOnCompletion = Just "Done :percent after :elapsed seconds"
                                }
       mapM_ (copyArtWithProgress dest pg) artFiles
@@ -107,7 +107,7 @@ run src dest = do
       barComplete <- isComplete pg
       unless barComplete $ tick pg
     copyArtWithProgress dest' pg file = do
-      let destPath = (joinPath (convertFilePath dest') (convertFilePath file))
+      let destPath = joinPath (convertFilePath dest') (convertFilePath file)
       createDirectoryIfMissing True (takeDirectory destPath)
       copyFile (convertFilePath file) destPath
       barComplete <- isComplete pg
