@@ -125,7 +125,7 @@ run (Opts workers verbose src dest) = do
                   -> SrcFilePath
                   -> IO ()
     applyProgress pg f dest' file = do
-      createDirectoryIfMissing True (takeDirectory (joinPath (fromDstFilePath dest') (fromSrcFilePath file)))
+      createDirectoryIfMissing True $ takeDirectory (joinPath (fromDstFilePath dest') (fromSrcFilePath file))
       f file dest'
       barComplete <- isComplete pg
       unless barComplete $ tick pg
