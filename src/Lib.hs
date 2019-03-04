@@ -116,11 +116,15 @@ run (Opts workers verbose src dest) = do
                                  , pgTotal = if not (null files) then toInteger $ length files else 1
                                  , pgOnCompletion = Just "Done :percent after :elapsed seconds"
                                  }
-        mapPool_ workers (applyProgress actionFunc dest pg) (fmap SrcFilePath files)
+        mapPool_ workers (applyProgress pg actionFunc dest) (fmap SrcFilePath files)
         liftIO $ complete pg
 
-    applyProgress :: (SrcFilePath -> DstFilePath -> IO ()) -> DstFilePath -> ProgressBar ->  SrcFilePath -> IO ()
-    applyProgress f dest' pg file = do
+    applyProgress :: ProgressBar
+                  -> (SrcFilePath -> DstFilePath -> IO ())
+                  -> DstFilePath
+                  -> SrcFilePath
+                  -> IO ()
+    applyProgress pg f dest' file = do
       createDirectoryIfMissing True (takeDirectory (joinPath (fromDstFilePath dest') (fromSrcFilePath file)))
       f file dest'
       barComplete <- isComplete pg
