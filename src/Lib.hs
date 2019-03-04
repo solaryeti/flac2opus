@@ -8,22 +8,32 @@ For more information on how to write Haddock comments check the user guide:
 -}
 
 module Lib
-    ( run
+    ( Opts(..)
+    , run
     ) where
 
+import           Lib.Prelude
+
 import           Control.Concurrent (threadDelay)
-import qualified Control.Foldl as Fold (list)
 import           Control.Monad (filterM, when)
-import qualified Data.Text as T
-import           Lib.Prelude hiding (find)
 import           System.Console.AsciiProgress
 import           System.Directory (createDirectoryIfMissing, removeFile, doesFileExist, copyFile)
 import           System.Exit (ExitCode(..), exitFailure)
 import           System.FilePath (FilePath, replaceExtension, takeDirectory, isAbsolute, dropDrive, (</>))
 import           System.Posix.Signals (installHandler, Handler(..), sigINT)
-import           Turtle (format, fp, fromString, procStrictWithErr, suffix, find)
-import qualified Turtle (fold, FilePath)
+import           Turtle (procStrictWithErr)
+
+import qualified Data.Text as T
 import qualified Control.Concurrent.PooledIO.Final as Pool
+import qualified System.FilePath.Find as F
+
+data Opts = Opts
+  { oWorkers :: Int
+  , oVerbose :: Bool
+  , oSrc     :: Text
+  , oDest    :: Text
+  } deriving (Show)
+
 
 -- | Create a version of `System.FilePath.combine` that prepends the
 -- given `parentPath` even when the `file` is absolute rather than
@@ -33,29 +43,19 @@ joinPath parentPath file
   | isAbsolute file = parentPath </> dropDrive file
   | otherwise = parentPath </> file
 
-convertFilePath :: Turtle.FilePath -> FilePath
-convertFilePath = T.unpack . format fp
-
-cleanup :: FilePath -> IO ()
-cleanup file = do
-  fileExists <- doesFileExist file
-  when fileExists $ do
-    putStrLn $ "\nProcess failed. Cleaning up " <> T.pack file
-    removeFile file
-
 -- | Find the flac files that are present under the `src`
 -- directory but missing from the `dest` directory.
 filesToConvert :: FilePath -> FilePath -> IO [FilePath]
 filesToConvert src dest = do
-    flacFiles <- Turtle.fold (find (suffix ".flac") (fromString src)) Fold.list
-    fmap convertFilePath <$> filterM (missingOpusFile dest) flacFiles
+    flacFiles <- F.find (pure True) (F.extension F.==? ".flac") src
+    filterM (missingOpusFile dest) flacFiles
   where
-    missingOpusFile dst file = not <$> doesFileExist (joinPath dst (replaceExtension (convertFilePath file) "opus"))
+    missingOpusFile dst file = not <$> doesFileExist (joinPath dst (replaceExtension file "opus"))
 
 -- | Convert a flac file file to opus, prepending the `dest` to the outfile.
 convertFile :: FilePath -> FilePath -> IO ()
 convertFile dest file  = do
-  let outfile = replaceExtension dest "opus"
+  let outfile = replaceExtension (joinPath dest file ) "opus"
   _ <- installHandler sigINT (Catch $ cleanup outfile) Nothing
   createDirectoryIfMissing True (takeDirectory outfile)
   (code, _, opuserr) <- procStrictWithErr "opusenc"
@@ -69,26 +69,33 @@ convertFile dest file  = do
     -- Give some time for our cleanup operations in the
     -- installHandler to do their thing
     threadDelay 300000
-    putStrLn $ T.pack ("Failed encoding: " ++ outfile)
+    putStrLn $ "Failed encoding: " ++ outfile
     putStrLn ("opusenc output:" :: Text)
     putStrLn opuserr
     exitFailure
+
+cleanup :: FilePath -> IO ()
+cleanup file = do
+  fileExists <- doesFileExist file
+  when fileExists $ do
+    putStrLn $ "\nProcess failed. Cleaning up " <> T.pack file
+    removeFile file
 
 -- | Find the cover art files that are present under the `src`
 -- directory but missing from the `dest` directory.
 coverArtFiles :: FilePath -> FilePath -> IO [FilePath]
 coverArtFiles src dest = do
-    artFiles <- Turtle.fold (find (suffix (".jpg" <|> ".png")) (fromString src)) Fold.list
-    fmap convertFilePath <$> filterM (missingArtFile dest) artFiles
+    artFiles <- F.find (pure True) (F.extension F.==? ".jpg" F.||? F.extension F.==? ".png") src
+    filterM (missingArtFile dest) artFiles
   where
-    missingArtFile dst file = not <$> doesFileExist (joinPath dst (convertFilePath file))
+    missingArtFile dst file = not <$> doesFileExist (joinPath dst file)
 
-run :: Text -> Text -> Int -> IO ()
-run src dest workers = do
+run :: Opts -> IO ()
+run (Opts workers verbose src dest) = do
     -- Encode flac files to opus
     doWithProgress filesToConvert convertFile "flac files"
     -- Copy cover art for opus files
-    doWithProgress coverArtFiles (flip copyFile) "cover art"
+    doWithProgress coverArtFiles copy "cover art"
 
  where
     doWithProgress :: (FilePath -> FilePath -> IO [FilePath])  -- ^ Function to find files
@@ -96,9 +103,10 @@ run src dest workers = do
                    -> Text                                     -- ^ Description of files to print in user messages
                    -> IO ()
     doWithProgress findFunc actionFunc description = do
-      putStrLn $ "Finding " <> description <> "..."
+      when verbose $ putStrLn $ "Finding " <> description <> "..."
       files <- findFunc (T.unpack src) (T.unpack dest)
-      putStrLn $ "Found " <> T.pack (show (length files)) <> " files."
+      when verbose $ printFiles files
+
       displayConsoleRegions $ do
         pg <- newProgressBar def { pgWidth = 100
                                  , pgTotal = if not (null files) then toInteger $ length files else 1
@@ -109,11 +117,14 @@ run src dest workers = do
 
     applyProgress :: (FilePath -> FilePath -> IO ()) -> FilePath -> ProgressBar ->  FilePath -> IO ()
     applyProgress f dest' pg file = do
-      let destPath = joinPath dest' file
-      createDirectoryIfMissing True (takeDirectory destPath)
-      f destPath file
+      createDirectoryIfMissing True (takeDirectory (joinPath dest' file))
+      f dest' file
       barComplete <- isComplete pg
       unless barComplete $ tick pg
+    copy dst' src' = copyFile src' (joinPath dst' src')
+    printFiles files = do
+      putStrLn $ "Found " <> T.pack (show (length files)) <> " files:"
+      mapM_ putStrLn files
 
 -- | Create a pool of 'n' threads and map an IO function over a
 -- traversable using that pool to run the function concurrently.

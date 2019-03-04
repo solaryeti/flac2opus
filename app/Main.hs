@@ -4,12 +4,6 @@ import Protolude hiding (option)
 import Lib
 import Options.Applicative
 
-data Opts = Opts
-  { workers :: Int
-  , src     :: Text
-  , dest    :: Text
-  } deriving (Show)
-
 opts :: ParserInfo Opts
 opts =
     info (helper <*> optsParser)
@@ -26,10 +20,12 @@ optsParser = Opts
          <> showDefault
          <> value 1
          <> metavar "INT" )
+      <*> switch
+          ( long "verbose"
+         <> short 'v'
+         <> help "Display verbose output" )
       <*> strArgument (metavar "SRC")
       <*> strArgument (metavar "DST")
 
 main :: IO ()
-main = do
-  opts' <- execParser opts
-  run (src opts') (dest opts') (workers opts')
+main = execParser opts >>= run
