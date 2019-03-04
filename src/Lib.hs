@@ -9,6 +9,8 @@ For more information on how to write Haddock comments check the user guide:
 
 module Lib
     ( Opts(..)
+    , SrcFilePath(..)
+    , DstFilePath(..)
     , run
     ) where
 
@@ -27,13 +29,15 @@ import qualified Data.Text as T
 import qualified Control.Concurrent.PooledIO.Final as Pool
 import qualified System.FilePath.Find as F
 
+newtype SrcFilePath = SrcFilePath { fromSrcFilePath :: FilePath }
+newtype DstFilePath = DstFilePath { fromDstFilePath :: FilePath }
+
 data Opts = Opts
   { oWorkers :: Int
   , oVerbose :: Bool
-  , oSrc     :: Text
-  , oDest    :: Text
-  } deriving (Show)
-
+  , oSrc     :: SrcFilePath
+  , oDest    :: DstFilePath
+  }
 
 -- | Create a version of `System.FilePath.combine` that prepends the
 -- given `parentPath` even when the `file` is absolute rather than
@@ -45,16 +49,16 @@ joinPath parentPath file
 
 -- | Find the flac files that are present under the `src`
 -- directory but missing from the `dest` directory.
-filesToConvert :: FilePath -> FilePath -> IO [FilePath]
-filesToConvert src dest = do
+filesToConvert :: SrcFilePath -> DstFilePath -> IO [FilePath]
+filesToConvert (SrcFilePath src) (DstFilePath dest) = do
     flacFiles <- F.find (pure True) (F.extension F.==? ".flac") src
     filterM (missingOpusFile dest) flacFiles
   where
     missingOpusFile dst file = not <$> doesFileExist (joinPath dst (replaceExtension file "opus"))
 
 -- | Convert a flac file file to opus, prepending the `dest` to the outfile.
-convertFile :: FilePath -> FilePath -> IO ()
-convertFile dest file  = do
+convertFile :: SrcFilePath -> DstFilePath -> IO ()
+convertFile (SrcFilePath file) (DstFilePath dest) = do
   let outfile = replaceExtension (joinPath dest file ) "opus"
   _ <- installHandler sigINT (Catch $ cleanup outfile) Nothing
   createDirectoryIfMissing True (takeDirectory outfile)
@@ -83,8 +87,8 @@ cleanup file = do
 
 -- | Find the cover art files that are present under the `src`
 -- directory but missing from the `dest` directory.
-coverArtFiles :: FilePath -> FilePath -> IO [FilePath]
-coverArtFiles src dest = do
+coverArtFiles :: SrcFilePath -> DstFilePath -> IO [FilePath]
+coverArtFiles (SrcFilePath src) (DstFilePath dest) = do
     artFiles <- F.find (pure True) (F.extension F.==? ".jpg" F.||? F.extension F.==? ".png") src
     filterM (missingArtFile dest) artFiles
   where
@@ -98,13 +102,13 @@ run (Opts workers verbose src dest) = do
     doWithProgress coverArtFiles copy "cover art"
 
  where
-    doWithProgress :: (FilePath -> FilePath -> IO [FilePath])  -- ^ Function to find files
-                   -> (FilePath -> FilePath -> IO ())          -- ^ Action to apply to found files
-                   -> Text                                     -- ^ Description of files to print in user messages
+    doWithProgress :: (SrcFilePath -> DstFilePath -> IO [FilePath])  -- ^ Function to find files
+                   -> (SrcFilePath -> DstFilePath -> IO ())          -- ^ Action to apply to found files
+                   -> Text                                           -- ^ Description of files to print in user messages
                    -> IO ()
     doWithProgress findFunc actionFunc description = do
       when verbose $ putStrLn $ "Finding " <> description <> "..."
-      files <- findFunc (T.unpack src) (T.unpack dest)
+      files <- findFunc src dest
       when verbose $ printFiles files
 
       displayConsoleRegions $ do
@@ -112,16 +116,16 @@ run (Opts workers verbose src dest) = do
                                  , pgTotal = if not (null files) then toInteger $ length files else 1
                                  , pgOnCompletion = Just "Done :percent after :elapsed seconds"
                                  }
-        mapPool_ workers (applyProgress actionFunc (T.unpack dest) pg) files
+        mapPool_ workers (applyProgress actionFunc dest pg) (fmap SrcFilePath files)
         liftIO $ complete pg
 
-    applyProgress :: (FilePath -> FilePath -> IO ()) -> FilePath -> ProgressBar ->  FilePath -> IO ()
+    applyProgress :: (SrcFilePath -> DstFilePath -> IO ()) -> DstFilePath -> ProgressBar ->  SrcFilePath -> IO ()
     applyProgress f dest' pg file = do
-      createDirectoryIfMissing True (takeDirectory (joinPath dest' file))
-      f dest' file
+      createDirectoryIfMissing True (takeDirectory (joinPath (fromDstFilePath dest') (fromSrcFilePath file)))
+      f file dest'
       barComplete <- isComplete pg
       unless barComplete $ tick pg
-    copy dst' src' = copyFile src' (joinPath dst' src')
+    copy src' dst' = copyFile (fromSrcFilePath src') (joinPath (fromDstFilePath dst') (fromSrcFilePath src'))
     printFiles files = do
       putStrLn $ "Found " <> T.pack (show (length files)) <> " files:"
       mapM_ putStrLn files

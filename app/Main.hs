@@ -24,8 +24,8 @@ optsParser = Opts
           ( long "verbose"
          <> short 'v'
          <> help "Display verbose output" )
-      <*> strArgument (metavar "SRC")
-      <*> strArgument (metavar "DST")
+      <*> fmap SrcFilePath (strArgument (metavar "SRC"))
+      <*> fmap DstFilePath (strArgument (metavar "DST"))
 
 main :: IO ()
 main = execParser opts >>= run
