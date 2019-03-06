@@ -1,12 +1,18 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Main where
 
-import Protolude hiding (option)
 import Lib
+
+import Data.Version (showVersion)
+import Development.GitRev (gitHash)
 import Options.Applicative
+import Paths_flac2opus (version) -- Magic module that gets the version from the cabal file
+import Protolude hiding (option)
 
 opts :: ParserInfo Opts
 opts =
-    info (helper <*> optsParser)
+    info (helper <*> versionOption <*> optsParser)
            ( fullDesc
           <> progDesc "Convert flac music files to opus."
           <> header "flac2opus - music converter" )
@@ -24,8 +30,16 @@ optsParser = Opts
           ( long "verbose"
          <> short 'v'
          <> help "Display verbose output" )
-      <*> fmap SrcFilePath (strArgument (metavar "SRC"))
-      <*> fmap DstFilePath (strArgument (metavar "DST"))
+      <*> (SrcFilePath <$> strArgument (metavar "SRC"))
+      <*> (DstFilePath <$> strArgument (metavar "DST"))
+
+-- | Version option that gets the version from the cabal file and the
+-- git hash.
+versionOption :: Parser (a -> a)
+versionOption =
+        infoOption
+            (concat ["flac2opus ", showVersion version, " ", $(gitHash)]) -- TemplateHaskell required for $(gitHash).
+            (long "version" <> help "Show version")
 
 main :: IO ()
 main = execParser opts >>= run

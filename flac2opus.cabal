@@ -36,10 +36,12 @@ executable flac2opus
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  other-modules:       Paths_flac2opus
   build-depends:       base
                      , flac2opus
+                     , gitrev
                      , optparse-applicative
-                     , protolude                                              
+                     , protolude
  default-language:    Haskell2010
  default-extensions:  OverloadedStrings, NoImplicitPrelude
 
