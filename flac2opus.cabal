@@ -1,6 +1,6 @@
 name:                flac2opus
 version:             0.1.0.0
--- synopsis:
+synopsis:            Encode flac files to opus
 -- description:
 homepage:            https://github.com/solaryeti/flac2opus#readme
 license:             BSD3
@@ -8,7 +8,7 @@ license-file:        LICENSE
 author:              Steven Meunier
 maintainer:          code@solaryeti.com
 copyright:           2019 Steven Meunier
-category:            Web
+category:            Application
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
