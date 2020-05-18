@@ -40,7 +40,7 @@ optsParser =
 versionOption :: Parser (a -> a)
 versionOption = infoOption
   (concat
-    [ "riff "
+    [ "flac2opus "
     , showVersion version
     , ", Git revision "
     , $(gitHash)
