@@ -48,8 +48,10 @@ import qualified System.FilePath.Find          as F
 newtype SrcFilePath = SrcFilePath { fromSrcFilePath :: FilePath }
 newtype DstFilePath = DstFilePath { fromDstFilePath :: FilePath }
 
+type Bitrate = Int
 data Opts = Opts
   { oWorkers :: Int
+  , oBitrate :: Bitrate
   , oVerbose :: Bool
   , oSrc     :: SrcFilePath
   , oDst     :: DstFilePath
@@ -74,13 +76,13 @@ filesToConvert (SrcFilePath src) (DstFilePath dst) = do
     not <$> doesFileExist (joinPath dst' (replaceExtension file "opus"))
 
 -- | Convert a flac file to opus, prepending the `dst` to the outfile.
-convertFile :: SrcFilePath -> DstFilePath -> IO ()
-convertFile (SrcFilePath src) (DstFilePath dst) = do
+convertFile :: Bitrate -> SrcFilePath -> DstFilePath -> IO ()
+convertFile bitrate (SrcFilePath src) (DstFilePath dst) = do
   _ <- installHandler sigINT (Catch $ cleanup outfile) Nothing
   createDirectoryIfMissing True (takeDirectory outfile)
   (code, _, opuserr) <- procStrictWithErr
     "opusenc"
-    ["--bitrate", "128", "--vbr", T.pack src, T.pack outfile]
+    ["--bitrate", show bitrate, "--vbr", T.pack src, T.pack outfile]
     empty
   unless (code == ExitSuccess) $ fatalError opuserr
  where
@@ -117,9 +119,9 @@ coverArtFiles (SrcFilePath src) (DstFilePath dst) = do
   missingArtFile dst' file = not <$> doesFileExist (joinPath dst' file)
 
 run :: Opts -> IO ()
-run (Opts workers verbose src dst) = do
+run (Opts workers bitrate verbose src dst) = do
     -- Encode flac files to opus
-  doWithProgress filesToConvert convertFile "flac files"
+  doWithProgress filesToConvert (convertFile bitrate) "flac files"
   putStrLn T.empty
   -- Copy cover art for opus files
   doWithProgress coverArtFiles copy "cover art"

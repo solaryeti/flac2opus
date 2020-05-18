@@ -31,6 +31,15 @@ optsParser =
           <> value 1
           <> metavar "INT"
           )
+    <*> option
+          auto
+          (  long "bitrate"
+          <> short 'b'
+          <> help "Bitrate for encoding"
+          <> showDefault
+          <> value 320
+          <> metavar "INT"
+          )
     <*> switch (long "verbose" <> short 'v' <> help "Display verbose output")
     <*> (SrcFilePath <$> strArgument (metavar "SRC"))
     <*> (DstFilePath <$> strArgument (metavar "DST"))
