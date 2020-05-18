@@ -14,21 +14,13 @@ where
 
 import           Lib.Prelude
 
-import           Control.Concurrent             ( threadDelay )
-import           Control.Monad                  ( filterM
-                                                , when
-                                                )
 import           System.Console.AsciiProgress
 import           System.Directory               ( createDirectoryIfMissing
                                                 , removeFile
                                                 , doesFileExist
                                                 , copyFile
                                                 )
-import           System.Exit                    ( ExitCode(..)
-                                                , exitFailure
-                                                )
-import           System.FilePath                ( FilePath
-                                                , replaceExtension
+import           System.FilePath                ( replaceExtension
                                                 , takeDirectory
                                                 , isAbsolute
                                                 , dropDrive
